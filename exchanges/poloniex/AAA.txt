@@ -1,0 +1,2 @@
+Write TickData.
+Borrow heavily from https://poloniex.com/support/api/
