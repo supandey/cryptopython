@@ -108,12 +108,12 @@ def main():
             #self._fh = open("rawTick.log", "w")
             
         def on_subscribe(self, threadName):
-            msg = {'type': 'subscribe', 'product_ids': self.products}
+            msg = {'type': 'subscribe', 'product_ids': self.products, 'channels':['full']}
             self.subscribe(threadName, msg)
             
         def on_message(self, msg):
             #self._fh.write('{} : {}\n'.format(dt.datetime.now(), msg))
-            #print('{} : {}'.format(dt.datetime.now(), msg))
+#            print('{} : {}'.format(dt.datetime.now(), msg))
             self.message_count += 1
 
         def on_close(self):
