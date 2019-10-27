@@ -2,6 +2,7 @@
 # Based on https://github.com/danpaquin/gdax-python and https://github.com/Seratna/GDAX-python
 #
 
+import sys
 import json
 import time
 import datetime as dt
@@ -15,9 +16,11 @@ class WebsocketClient:
         self.url = url
         self.products = products
         self.oneThreadPerProduct = oneThreadPerProduct;
-        self.stop = False
+        self.stop = True
+        self.error = None
         self.ws = {}
         self.thread = {}
+        self.keepalive = {}
 
     def start(self):
         self.stop = False
@@ -26,10 +29,12 @@ class WebsocketClient:
             for threadName in self.products:
                 print('Create thread for {}'.format(threadName))
                 self.thread[threadName] = Thread(target=self._go, args=(threadName,), name=threadName)
+                self.keepalive[threadName]= Thread(target=self._keepalive, args=(threadName,), name=threadName)
                 self.thread[threadName].start()
         else:
             threadName = 'MY_THREAD'
             self.thread[threadName] = Thread(target=self._go, args=(threadName,), name=threadName)
+            self.keepalive[threadName]= Thread(target=self._keepalive, args=(threadName,), name=threadName)
             self.thread[threadName].start()
         
     def subscribe(self, threadName, msg):
@@ -39,6 +44,11 @@ class WebsocketClient:
         self._connect(threadName)
         self._listen(threadName)
         self._disconnect(threadName)
+        
+    def _keepalive(self, threadName, interval=30):
+        while self.ws[threadName].connected:
+            self.ws[threadName].ping("keepalive")       # Set a 30 second ping to keep connection alive
+            time.sleep(interval)
 
     def _connect(self, threadName):
         if self.oneThreadPerProduct:
@@ -47,10 +57,8 @@ class WebsocketClient:
         else:
             self.ws[threadName] = create_connection(self.url)
             self.on_subscribe(threadName)              # This calls subscribe(). Each exchange has unique msg syntax
-            #self.ws.send(json.dumps({"type": "heartbeat", "on": True}))  # heartbeat
             
     def _disconnect(self, threadName):
-        #if self.type == "heartbeat": self.ws.send(json.dumps({"type": "heartbeat", "on": False}))
         try:
             if self.ws[threadName]:
                 self.ws[threadName].close()
@@ -58,26 +66,34 @@ class WebsocketClient:
             pass
         except Exception as e:
             print('\n {} ERROR WebsocketClient:_disconnect() {}: {}'.format(dt.datetime.now(), threadName, e))
+        finally:
+            self.keepalive[threadName].join()
           
     def _listen(self, threadName):
+        self.keepalive[threadName].start()
         while not self.stop:
             try:
-                if int(time.time() % 30) == 0: self.ws[threadName].ping("keepalive")  # Set a 30 second ping to keep connection alive
-                msg = json.loads(self.ws[threadName].recv())
+                data = self.ws[threadName].recv()
+                msg = json.loads(data)
                 if (type(msg) == dict): msg['threadName'] = threadName    # add to make easy to determine source when many threads
-                self.on_message(msg)
+            except ValueError as e:
+                self.stop = True
+                errMsg = '\n WebsocketClient:_listen() {}: {}-{}'.format(threadName, type(e), e)
+                self.on_error(errMsg)
             except Exception as e:
                 self.stop = True
                 errMsg = '\n WebsocketClient:_listen() {}: {}-{}'.format(threadName, type(e), e)
                 self.on_error(errMsg)
+            else:
+                self.on_message(msg)
  
     def close(self):
-        #self.ws.send(json.dumps({"type": "heartbeat", "on": False}))
         self.on_close()
-        self.stop = True
+        self.stop = True      # will only disconnect after next msg recv
         
         for key in self.thread:
             print(' Close Thread: {}'.format(key))
+            self._disconnect(key) # force disconnect so threads can join
             self.thread[key].join()
 
     def on_open(self):
@@ -93,6 +109,7 @@ class WebsocketClient:
         print(msg)
 
     def on_error(self, errMsg):
+        self.error = errMsg
         print('\n {} ERROR {}: {}'.format(dt.datetime.now(), errMsg))
         
 def main():
@@ -121,17 +138,28 @@ def main():
             print('-- Goodbye! - MessageCount = {}'.format(self.message_count))
 
 
-    for cnt in range(3):                #handle disconencts this way. Cleans up resources (Websocket) better
-        wsClient = MyWebsocketClient()
-        wsClient.start()
-        print('Loop: {} (url: {} products: {})'.format(cnt, wsClient.url, wsClient.products))
+    wsClient = MyWebsocketClient()
+    wsClient.start()
+    print('(url: {} products: {})'.format(wsClient.url, wsClient.products))
+    
+    try:
         # Do some logic with the data
         while wsClient.message_count < 100 and wsClient.stop == False:
-            print('MessageCount = {} \n'.format(wsClient.message_count))
+            print('\nMessageCount = {} \n'.format(wsClient.message_count))
+            if wsClient.message_count >= 100: break
             time.sleep(1)
-    
+        print('We exit loop and close')
         wsClient.close()
-        if wsClient.message_count >= 100: break
+    except KeyboardInterrupt:
+        wsClient.close()
+        
+    print('\nEXIT LOOP\n')
+
+    if wsClient.error:
+        print('See error: {}'.format(wsClient.error))
+        sys.exit(1)
+    else:
+        sys.exit(0)
     
     
 if __name__ == "__main__":
