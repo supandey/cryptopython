@@ -20,7 +20,6 @@ class WebsocketClient:
         self.error = None
         self.ws = {}
         self.thread = {}
-        self.keepalive = {}
 
     def start(self):
         self.stop = False
@@ -29,12 +28,10 @@ class WebsocketClient:
             for threadName in self.products:
                 print('Create thread for {}'.format(threadName))
                 self.thread[threadName] = Thread(target=self._go, args=(threadName,), name=threadName)
-                self.keepalive[threadName]= Thread(target=self._keepalive, args=(threadName,), name=threadName)
                 self.thread[threadName].start()
         else:
             threadName = 'MY_THREAD'
             self.thread[threadName] = Thread(target=self._go, args=(threadName,), name=threadName)
-            self.keepalive[threadName]= Thread(target=self._keepalive, args=(threadName,), name=threadName)
             self.thread[threadName].start()
         
     def subscribe(self, threadName, msg):
@@ -44,11 +41,6 @@ class WebsocketClient:
         self._connect(threadName)
         self._listen(threadName)
         self._disconnect(threadName)
-        
-    def _keepalive(self, threadName, interval=30):
-        while self.ws[threadName].connected:
-            self.ws[threadName].ping("keepalive")       # Set a 30 second ping to keep connection alive
-            time.sleep(interval)
 
     def _connect(self, threadName):
         if self.oneThreadPerProduct:
@@ -66,13 +58,11 @@ class WebsocketClient:
             pass
         except Exception as e:
             print('\n {} ERROR WebsocketClient:_disconnect() {}: {}'.format(dt.datetime.now(), threadName, e))
-        finally:
-            self.keepalive[threadName].join()
           
     def _listen(self, threadName):
-        self.keepalive[threadName].start()
         while not self.stop:
             try:
+                if int(time.time() % 30) == 0: self.ws[threadName].ping("keepalive")  # Set a 30 second ping to keep connection alive
                 data = self.ws[threadName].recv()
                 msg = json.loads(data)
                 if (type(msg) == dict): msg['threadName'] = threadName    # add to make easy to determine source when many threads
@@ -94,7 +84,10 @@ class WebsocketClient:
         for key in self.thread:
             print(' Close Thread: {}'.format(key))
             self._disconnect(key) # force disconnect so threads can join
+            print(' _disconnect(): {}'.format(key))
             self.thread[key].join()
+            print(' join(): {}'.format(key))
+            
 
     def on_open(self):
         pass
@@ -142,11 +135,12 @@ def main():
     wsClient.start()
     print('(url: {} products: {})'.format(wsClient.url, wsClient.products))
     
+    numLoop = 1000
     try:
         # Do some logic with the data
-        while wsClient.message_count < 100 and wsClient.stop == False:
+        while wsClient.message_count < numLoop and wsClient.stop == False:
             print('\nMessageCount = {} \n'.format(wsClient.message_count))
-            if wsClient.message_count >= 100: break
+            if wsClient.message_count >= numLoop: break
             time.sleep(1)
         print('We exit loop and close')
         wsClient.close()
@@ -156,9 +150,10 @@ def main():
     print('\nEXIT LOOP\n')
 
     if wsClient.error:
-        print('See error: {}'.format(wsClient.error))
+        print('Call sys.exit(1): {}'.format(wsClient.error))
         sys.exit(1)
     else:
+        print('Call sys.exit(0)')
         sys.exit(0)
     
     
