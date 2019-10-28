@@ -23,7 +23,7 @@ class OrderBook(OrderBookBase):
         self._client = PublicClient()
         
     def on_subscribe(self, threadName):
-        msg = {'type': 'subscribe', 'product_ids': self.products}
+        msg = {'type': 'subscribe', 'product_ids': self.products, 'channels':['full']}
         self.subscribe(threadName, msg)
 
     def on_message(self, data):
