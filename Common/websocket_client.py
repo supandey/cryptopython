@@ -123,7 +123,7 @@ def main():
             
         def on_message(self, msg):
             #self._fh.write('{} : {}\n'.format(dt.datetime.now(), msg))
-#            print('{} : {}'.format(dt.datetime.now(), msg))
+            #print('{} : {}'.format(dt.datetime.now(), msg))
             self.message_count += 1
 
         def on_close(self):
@@ -135,7 +135,7 @@ def main():
     wsClient.start()
     print('(url: {} products: {})'.format(wsClient.url, wsClient.products))
     
-    numLoop = 1000
+    numLoop = 100
     try:
         # Do some logic with the data
         while wsClient.message_count < numLoop and wsClient.stop == False:

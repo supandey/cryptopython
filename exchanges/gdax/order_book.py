@@ -2,6 +2,10 @@
 # Based on https://github.com/danpaquin/gdax-python and https://github.com/Seratna/GDAX-python
 #
 
+#from IPython.core.debugger import Pdb
+#Pdb().set_trace()
+
+
 import sys
 if "../../Common" not in sys.path: sys.path.append("../../Common") # Desperation
 if "../Exchanges/gdax" not in sys.path: sys.path.append("../Exchanges/gdax") # Desperation
@@ -35,7 +39,7 @@ class OrderBook(OrderBookBase):
                 pass  # I/O operation on closed file.
             
         msg_type = data['type']  # get message type
-        if msg_type == 'heartbeat':  # ignore heartbeat msg
+        if msg_type == 'heartbeat' or msg_type == 'subscriptions':  # ignore heartbeat msg
             return
         
         product = data['product_id']
