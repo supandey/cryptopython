@@ -19,6 +19,7 @@ class OrderBook(OrderBookBase):
         self._client = PublicClient()
         self._currencyDictBook = {}
         self._currencyDictTrade = {}
+        self._log_to = log_to
             
         #decimal.getcontext().prec = 8
         print('Init OrderBook. Create {}'.format(self._book.keys()))
@@ -27,11 +28,13 @@ class OrderBook(OrderBookBase):
         # subscribe
         for product in self.products:
             #msg = {'event': 'subscribe', 'channel': 'book', 'pair': product, 'prec': 'R0'} #provides updates via order ID.
-            msg = {'event': 'subscribe', 'channel': 'book', 'pair': 't'+product, 'len' : 100, 'flags': 8+65536}   # need to add 't' to subscribe
+#            msg = {'event': 'subscribe', 'channel': 'book', 'pair': 't'+product, 'len' : 100, 'flags': 8+65536}   # need to add 't' to subscribe
+            msg = {'event': 'subscribe', 'channel': 'book', 'symbol': 't'+product, 'len' : 100, 'flags': 8+65536}   # need to add 't' to subscribe
             self.subscribe(threadName, msg)
         
         for product in self.products:
-            msg = {'event': 'subscribe', 'channel': 'trades', 'pair': 't'+product}           # need to add 't' to subscribe
+#            msg = {'event': 'subscribe', 'channel': 'trades', 'pair': 't'+product}           # need to add 't' to subscribe
+            msg = {'event': 'subscribe', 'channel': 'trades', 'symbol': 't'+product} 
             self.subscribe(threadName, msg)
 
     def on_message(self, msg):
@@ -73,27 +76,32 @@ class OrderBook(OrderBookBase):
                     if (msg[1] == 'hb'):
                         return
                     elif (type(msg[1]) is list):
-                        self._book[product].doSnapShot(msg[1])
-                    else:
+                        lMsg = msg[1] 
                         
-                        with localcontext() as ctx:
-                            ctx.prec = 8   #double to float is odd
-                            
-                            price = Decimal(msg[1])+0   #trick to get to round
-                            count = msg[2]
-                            size = Decimal(msg[3])+0   #trick to get to round
-                            side = 'buy' if size > 0 else 'sell'
-                            
-                            self._book[product].setTradePriceSizeToZero()
-                            
-                            if (count == 0):
-                                if self._book[product].doUpdateBook(side, price, 0) == False:
-                                    self.on_error('Missing price')
-                                    self.close()
-                            else:
-                                if self._book[product].doUpdateBook(side, price, abs(size)) == False:
-                                    self.on_error('Missing price')
-                                    self.close()
+                        if (type(lMsg[0]) is list):                        # breaking change. everything is a list or list of lists now
+                            self._book[product].doSnapShot(lMsg)
+                        else:
+                            with localcontext() as ctx:
+                                ctx.prec = 8   #double to float is odd
+                                
+                                price = Decimal(lMsg[0])+0   #trick to get to round
+                                count = lMsg[1]
+                                size = Decimal(lMsg[2])+0   #trick to get to round
+                                side = 'buy' if size > 0 else 'sell'
+                                
+                                self._book[product].setTradePriceSizeToZero()
+                                
+                                if (count == 0):
+                                    if self._book[product].doUpdateBook(side, price, 0) == False:
+                                        self.on_error('Missing price')
+                                        self.close()
+                                else:
+                                    if self._book[product].doUpdateBook(side, price, abs(size)) == False:
+                                        self.on_error('Missing price')
+                                        self.close()
+                    else:
+                        print('UNKNOWN type order_book.on_message(): msg: {}'.format(msg))
+                        
                 elif (productID in self._currencyDictTrade):
                     
                     if msg[1] == 'te':
@@ -104,8 +112,10 @@ class OrderBook(OrderBookBase):
                         with localcontext() as ctx:
                             ctx.prec = 8   #double to float is odd
                             
-                            price = Decimal(msg[4])+0   #trick to get to round
-                            size = Decimal(msg[5])+0   #trick to get to round
+                            lMsg = msg[2]  # breaking change. rest of data is not a list  [91, 'te', [397614371, 1572466610566, 0.05665804, 9220.02494116]]
+                            
+                            price = Decimal(lMsg[3])+0   #trick to get to round
+                            size = Decimal(lMsg[2])+0   #trick to get to round
                             side = 'buy' if size > 0 else 'sell'
                             self._book[product].doUpdateTrade(side, price, abs(size))
                     
@@ -128,7 +138,8 @@ def main():
     class OrderBookConsole(OrderBook):
         ''' Logs real-time changes to the bid-ask spread to the console '''
 
-        def __init__(self, url='wss://api2.bitfinex.com:3000/ws', products=['BTCUSD', 'ETHUSD'], oneThreadPerProduct=False, log_to=None):
+        def __init__(self, url='wss://api-pub.bitfinex.com/ws/2', products=['BTCUSD', 'ETHUSD'], oneThreadPerProduct=False, log_to=None):
+#        def __init__(self, url='wss://api2.bitfinex.com:3000/ws', products=['tBTCUSD', 'tETHUSD'], oneThreadPerProduct=False, log_to=None):
         #def __init__(self, url='wss://api2.bitfinex.com:3000/ws', products=['BTC_XMR'], log_to=None):
             OrderBook.__init__(self, url, products, oneThreadPerProduct, log_to=log_to)
 
@@ -168,7 +179,7 @@ def main():
             OrderBook.on_close(self)
             print("-- Goodbye! --")
 
-    #fh = open("rawTick.log", "w")
+#    fh = open("rawTick.log", "w")
     fh = None
     order_book = OrderBookConsole(log_to=fh)
     order_book.start()
