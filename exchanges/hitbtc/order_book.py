@@ -128,9 +128,6 @@ def main():
             
             product = self._workingProduct
             
-#            bS, bP, aP, aS = self._book['BTCUSD'].getTopBidAsk()
-#            print('DEBUG OrderBookConsole::on_message() {}: {} {} {} {} '.format(product, bS, bP, aP, aS))
-            
             if (product == None or not self.isGood(product)):
                 return;
                 
