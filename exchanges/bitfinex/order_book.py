@@ -1,3 +1,5 @@
+# https://docs.bitfinex.com/reference#ws-public-ticker
+
 import sys
 if "../../Common" not in sys.path: sys.path.append("../../Common") # Desperation
 if "../Exchanges/bitfinex" not in sys.path: sys.path.append("../Exchanges/bitfinex") # Desperation

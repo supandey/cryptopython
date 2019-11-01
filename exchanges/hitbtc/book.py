@@ -1,3 +1,5 @@
+# https://api.hitbtc.com/#socket-api-reference
+
 import sys
 if "../../Common" not in sys.path: sys.path.append("../../Common") # Desperation
 
@@ -44,7 +46,10 @@ class Book(BookBase):
             
     def doUpdateTrade(self, trades):
         for data in trades:
-            self.setTradePriceSize(Decimal(data['price']), Decimal(data['size']))
+            price = Decimal(data['price'])
+            size = Decimal(data['quantity'])
+            side = 'B' if data['side'] == 'buy' else 'S'
+            self.setTradePriceSize(price, size, side)
             
 def main():
     book = Book('USDT_BTC')
