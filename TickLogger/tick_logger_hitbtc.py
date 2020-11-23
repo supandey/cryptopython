@@ -16,14 +16,18 @@ def main():
     fileName = 'Tick_hitbtc_{}.log'.format(time.strftime('%Y%m%d_%H%M%S'))
     
     timeToRunSec = 60*60*24    # 12 hours
+    timeForReconnect = 60*60*1 # 1 hour
     timeToSleep = 1            # 1 second
     
     timeStart = dt.datetime.now()
+    timeReconnect = dt.datetime.now()
     dTime = 0
+    dTimeReconnect = 0
     cntLoop = 0
     while dTime < timeToRunSec:
-        products=['BTCUSD', 'ETHUSD', 'LTCUSD', 'ETHBTC', 'LTCBTC', 'DASHUSD', 'XMRUSD', 'ZECUSD']
-        orderBook = OrderBook(url='ws://api.hitbtc.com:80/market', products=products, oneThreadPerProduct=False, log_to=fh)
+        # products=['BTCUSD', 'ETHUSD', 'LTCUSD', 'ETHBTC', 'LTCBTC', 'DASHUSD', 'XMRUSD', 'ZECUSD']
+        products=['BTCUSD', 'ETHUSD', 'LTCUSD', 'ETHBTC', 'LTCBTC']
+        orderBook = OrderBook(url='wss://api.hitbtc.com/api/2/ws', products=products, oneThreadPerProduct=False, log_to=fh)
         tickLogger = TickLoggerBase(fileName, orderBook, writeHeader = True if cntLoop == 0 else False)
         tickLogger.start()
         
@@ -31,6 +35,14 @@ def main():
             while not orderBook.isClosed() and dTime < timeToRunSec:
                 time.sleep(timeToSleep)
                 dTime = (dt.datetime.now() - timeStart).total_seconds()
+                dTimeReconnect = (dt.datetime.now() - timeReconnect).total_seconds()
+                
+                if dTimeReconnect > timeForReconnect:
+                    timeReconnect = dt.datetime.now()
+                    dTimeReconnect = 0
+                    print('Reconnect {}'.format(timeReconnect))
+                    break
+    
         except KeyboardInterrupt:
             tickLogger.close()
             print('Exit tickLogger loop')
